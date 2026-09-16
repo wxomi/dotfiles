@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# Internal loop for claudefm — do not call directly.
+# Plays via mpv + yt-dlp (ytdl hook); volume controlled over IPC.
+set -u
+
+CACHE_DIR="${HOME}/.cache/claudefm"
+PIDFILE="${CACHE_DIR}/player.pid"
+PLAYINGFILE="${CACHE_DIR}/playing"
+STOPFILE="${CACHE_DIR}/stop"
+URLFILE="${CACHE_DIR}/url"
+VOLFILE="${CACHE_DIR}/volume"
+LOGFILE="${CACHE_DIR}/player.log"
+IPCFILE="${CACHE_DIR}/mpv.sock"
+DEFAULT_URL='https://www.youtube.com/watch?v=tRsQsTMvPNg'
+DEFAULT_VOL=55
+# Live Claude FM only exposes muxed HLS — prefer low bitrate.
+FORMAT='91/92/93/bestaudio/best'
+MPV="${HOMEBREW_PREFIX:-/opt/homebrew}/bin/mpv"
+YT_DLP="${HOMEBREW_PREFIX:-/opt/homebrew}/bin/yt-dlp"
+export PATH="${HOMEBREW_PREFIX:-/opt/homebrew}/bin:${PATH:-/usr/bin:/bin}"
+
+cleanup() {
+  rm -f "$PIDFILE" "$PLAYINGFILE" "$IPCFILE"
+}
+trap cleanup EXIT INT TERM
+
+read_volume() {
+  local vol
+  vol="$(tr -d '[:space:]' <"$VOLFILE" 2>/dev/null || true)"
+  if [[ -z "${vol:-}" || ! "$vol" =~ ^[0-9]+$ ]]; then
+    vol="$DEFAULT_VOL"
+  fi
+  if ((vol > 100)); then vol=100; fi
+  if ((vol < 0)); then vol=0; fi
+  printf '%s' "$vol"
+}
+
+# One-shot JSON IPC to mpv. Prints response line or exits 1.
+mpv_ipc() {
+  local payload="$1"
+  /usr/bin/python3 - "$IPCFILE" "$payload" <<'PY'
+import socket, sys
+sock_path, payload = sys.argv[1], sys.argv[2]
+if not payload.endswith("\n"):
+    payload += "\n"
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.settimeout(1.5)
+try:
+    s.connect(sock_path)
+    s.sendall(payload.encode())
+    data = b""
+    while True:
+        chunk = s.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+        if b"\n" in data:
+            break
+    sys.stdout.write(data.split(b"\n", 1)[0].decode("utf-8", "replace"))
+except Exception:
+    sys.exit(1)
+finally:
+    s.close()
+PY
+}
+
+# core-idle == false means audio is actively advancing.
+mpv_is_decoding() {
+  local resp data
+  resp="$(mpv_ipc '{"command":["get_property","core-idle"]}' 2>/dev/null)" || return 1
+  data="$(/usr/bin/python3 -c 'import json,sys; print(json.load(sys.stdin).get("data", True))' <<<"$resp" 2>/dev/null)" || return 1
+  [[ "$data" == "False" || "$data" == "false" ]]
+}
+
+URL="$(cat "$URLFILE" 2>/dev/null || true)"
+URL="${URL:-$DEFAULT_URL}"
+
+rm -f "$PLAYINGFILE" "$IPCFILE"
+echo $$ >"$PIDFILE"
+[[ -f "$VOLFILE" ]] || echo "$DEFAULT_VOL" >"$VOLFILE"
+
+watch_mpv() {
+  local mpid="$1"
+  local idle=0
+  local grace=8
+  while kill -0 "$mpid" 2>/dev/null; do
+    if [[ -f "$STOPFILE" ]]; then
+      kill "$mpid" 2>/dev/null || true
+      sleep 0.3
+      kill -9 "$mpid" 2>/dev/null || true
+      return
+    fi
+    if mpv_is_decoding; then
+      idle=0
+      : >"$PLAYINGFILE"
+    else
+      idle=$((idle + 1))
+      if ((idle >= 3)); then
+        rm -f "$PLAYINGFILE"
+      fi
+    fi
+    if ((idle >= grace + 12)); then
+      echo "$(date '+%F %T') stall-reconnect mpv=$mpid" >>"$LOGFILE"
+      kill "$mpid" 2>/dev/null || true
+      sleep 0.4
+      kill -9 "$mpid" 2>/dev/null || true
+      return
+    fi
+    sleep 1
+  done
+}
+
+while [[ ! -f "$STOPFILE" ]]; do
+  if [[ -f "$URLFILE" ]]; then
+    URL="$(cat "$URLFILE")"
+  fi
+  vol="$(read_volume)"
+  rm -f "$PLAYINGFILE" "$IPCFILE"
+
+  "$MPV" \
+    --no-video \
+    --force-window=no \
+    --really-quiet \
+    --terminal=no \
+    --input-terminal=no \
+    --ytdl=yes \
+    --ytdl-format="$FORMAT" \
+    --script-opts="ytdl_hook-ytdl_path=${YT_DLP}" \
+    --cache=yes \
+    --demuxer-max-bytes=64MiB \
+    --demuxer-readahead-secs=20 \
+    --volume="$vol" \
+    --input-ipc-server="$IPCFILE" \
+    --no-input-default-bindings \
+    --idle=no \
+    "$URL" >>"$LOGFILE" 2>&1 &
+  mpid=$!
+
+  # Wait for IPC socket.
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do
+    if [[ -S "$IPCFILE" ]] && mpv_ipc '{"command":["get_property","pid"]}' >/dev/null 2>&1; then
+      break
+    fi
+    kill -0 "$mpid" 2>/dev/null || break
+    sleep 0.25
+  done
+
+  if ! kill -0 "$mpid" 2>/dev/null; then
+    echo "$(date '+%F %T') mpv-start-failed" >>"$LOGFILE"
+    sleep 3
+    continue
+  fi
+
+  watch_mpv "$mpid"
+  wait "$mpid" 2>/dev/null || true
+  rm -f "$PLAYINGFILE" "$IPCFILE"
+  [[ -f "$STOPFILE" ]] && break
+  sleep 1
+done

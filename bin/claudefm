@@ -1,0 +1,388 @@
+#!/usr/bin/env bash
+# Background YouTube audio player (default: Claude FM).
+# Backend: mpv + yt-dlp; volume via mpv IPC.
+#
+#   cfm / claudefm [start] [URL]
+#   cfmstop | claudefm stop
+#   claudefm vol [N|+|-|mute]
+#   claudefm status | bar
+
+set -euo pipefail
+
+CACHE_DIR="${HOME}/.cache/claudefm"
+PIDFILE="${CACHE_DIR}/player.pid"
+PLAYINGFILE="${CACHE_DIR}/playing"
+STOPFILE="${CACHE_DIR}/stop"
+URLFILE="${CACHE_DIR}/url"
+LABELFILE="${CACHE_DIR}/label"
+VOLFILE="${CACHE_DIR}/volume"
+PREVOLFILE="${CACHE_DIR}/volume.prev"
+LOGFILE="${CACHE_DIR}/player.log"
+IPCFILE="${CACHE_DIR}/mpv.sock"
+RUNNER="${HOME}/.local/bin/claudefm-run"
+DEFAULT_URL='https://www.youtube.com/watch?v=tRsQsTMvPNg'
+DEFAULT_LABEL='Claude FM'
+DEFAULT_VOL=55
+VOL_STEP=10
+YT_DLP="${HOMEBREW_PREFIX:-/opt/homebrew}/bin/yt-dlp"
+MPV="${HOMEBREW_PREFIX:-/opt/homebrew}/bin/mpv"
+
+mkdir -p "$CACHE_DIR"
+[[ -f "$VOLFILE" ]] || echo "$DEFAULT_VOL" >"$VOLFILE"
+
+is_url() {
+  [[ "${1:-}" =~ ^https?:// ]]
+}
+
+# One-shot JSON IPC to mpv. Prints response line or exits 1.
+mpv_ipc() {
+  local payload="$1"
+  [[ -S "$IPCFILE" ]] || return 1
+  /usr/bin/python3 - "$IPCFILE" "$payload" <<'PY'
+import socket, sys
+sock_path, payload = sys.argv[1], sys.argv[2]
+if not payload.endswith("\n"):
+    payload += "\n"
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.settimeout(1.5)
+try:
+    s.connect(sock_path)
+    s.sendall(payload.encode())
+    data = b""
+    while True:
+        chunk = s.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+        if b"\n" in data:
+            break
+    sys.stdout.write(data.split(b"\n", 1)[0].decode("utf-8", "replace"))
+except Exception:
+    sys.exit(1)
+finally:
+    s.close()
+PY
+}
+
+runner_pid() {
+  local pid
+  pid="$(pgrep -n -f '/Users/wxomi/.local/bin/claudefm-run' 2>/dev/null || true)"
+  if [[ -n "${pid:-}" ]]; then
+    printf '%s' "$pid"
+    return 0
+  fi
+  if [[ -f "$PIDFILE" ]]; then
+    pid="$(tr -d '[:space:]' <"$PIDFILE" 2>/dev/null || true)"
+    if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
+      printf '%s' "$pid"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+is_running() {
+  runner_pid >/dev/null
+}
+
+mpv_pid() {
+  local rpid mpid
+  rpid="$(runner_pid || true)"
+  [[ -n "${rpid:-}" ]] || return 1
+  mpid="$(pgrep -P "$rpid" -f '[m]pv' 2>/dev/null | head -n 1 || true)"
+  if [[ -z "${mpid:-}" ]]; then
+    mpid="$(pgrep -n -f "${MPV} .*--input-ipc-server=${IPCFILE}" 2>/dev/null || true)"
+  fi
+  if [[ -z "${mpid:-}" ]]; then
+    mpid="$(pgrep -n -f '/opt/homebrew/bin/mpv .*claudefm|/opt/homebrew/bin/mpv .*youtube' 2>/dev/null || true)"
+  fi
+  # Prefer any mpv bound to our IPC socket path.
+  if [[ -z "${mpid:-}" ]]; then
+    mpid="$(pgrep -n -f "--input-ipc-server=${IPCFILE}" 2>/dev/null || true)"
+  fi
+  [[ -n "${mpid:-}" ]] || return 1
+  printf '%s' "$mpid"
+}
+
+# True only while mpv is actively decoding (not stalled/idle).
+is_playing() {
+  local resp data
+  [[ -f "$PLAYINGFILE" ]] || return 1
+  mpv_pid >/dev/null || return 1
+  resp="$(mpv_ipc '{"command":["get_property","core-idle"]}' 2>/dev/null)" || return 1
+  data="$(/usr/bin/python3 -c 'import json,sys; print(json.load(sys.stdin).get("data", True))' <<<"$resp" 2>/dev/null)" || return 1
+  [[ "$data" == "False" || "$data" == "false" ]]
+}
+
+current_label() {
+  if [[ -f "$LABELFILE" ]]; then
+    tr -d '\n' <"$LABELFILE"
+  else
+    printf '%s' "$DEFAULT_LABEL"
+  fi
+}
+
+current_volume() {
+  local vol
+  vol="$(tr -d '[:space:]' <"$VOLFILE" 2>/dev/null || true)"
+  if [[ -z "${vol:-}" || ! "$vol" =~ ^[0-9]+$ ]]; then
+    vol="$DEFAULT_VOL"
+  fi
+  if ((vol > 100)); then vol=100; fi
+  if ((vol < 0)); then vol=0; fi
+  printf '%s' "$vol"
+}
+
+# Instant volume change via IPC (no player restart).
+apply_volume() {
+  local vol="$1"
+  mpv_ipc "{\"command\":[\"set_property\",\"volume\",${vol}]}" >/dev/null 2>&1 || true
+}
+
+clamp_vol() {
+  local vol="$1"
+  if ((vol > 100)); then vol=100; fi
+  if ((vol < 0)); then vol=0; fi
+  printf '%s' "$vol"
+}
+
+# Machine-readable for WezTerm: LABEL<TAB>VOL
+# Only emit when mpv is actively decoding.
+cmd_bar() {
+  if is_playing; then
+    printf '%s\t%s' "$(current_label)" "$(current_volume)"
+  fi
+  return 0
+}
+
+fetch_label() {
+  local url="$1"
+  if [[ "$url" == "$DEFAULT_URL" ]]; then
+    printf '%s' "$DEFAULT_LABEL"
+    return
+  fi
+  local title
+  title="$("$YT_DLP" --get-title --no-playlist "$url" 2>/dev/null || true)"
+  if [[ -z "${title:-}" ]]; then
+    printf 'YouTube'
+    return
+  fi
+  if ((${#title} > 24)); then
+    title="${title:0:23}…"
+  fi
+  printf '%s' "$title"
+}
+
+cmd_stop() {
+  touch "$STOPFILE"
+  local pid mpid
+  pid="$(runner_pid || true)"
+  mpid="$(mpv_pid || true)"
+  if [[ -n "${mpid:-}" ]]; then
+    kill "$mpid" 2>/dev/null || true
+  fi
+  if [[ -n "${pid:-}" ]]; then
+    pkill -P "$pid" 2>/dev/null || true
+    kill "$pid" 2>/dev/null || true
+    sleep 0.3
+    pkill -9 -P "$pid" 2>/dev/null || true
+    kill -9 "$pid" 2>/dev/null || true
+  fi
+  pkill -f '/Users/wxomi/.local/bin/claudefm-run' 2>/dev/null || true
+  pkill -f "--input-ipc-server=${IPCFILE}" 2>/dev/null || true
+  # Legacy cleanup from ffplay era (safe no-ops if none).
+  pkill -f 'ffplay.*-nodisp' 2>/dev/null || true
+  pkill -f 'ffmpeg .*googlevideo.com' 2>/dev/null || true
+  rm -f "$PIDFILE" "$PLAYINGFILE" "$IPCFILE"
+  echo "stopped"
+}
+
+cmd_start() {
+  local url="${1:-$DEFAULT_URL}"
+  if ! is_url "$url"; then
+    echo "Not a URL: $url" >&2
+    return 1
+  fi
+
+  if is_running; then
+    local cur
+    cur="$(cat "$URLFILE" 2>/dev/null || true)"
+    if [[ "$cur" == "$url" ]]; then
+      echo "already playing: $(current_label) @ $(current_volume)%"
+      return 0
+    fi
+    cmd_stop >/dev/null
+  fi
+
+  local label
+  label="$(fetch_label "$url")"
+  printf '%s\n' "$url" >"$URLFILE"
+  printf '%s\n' "$label" >"$LABELFILE"
+
+  rm -f "$STOPFILE" "$IPCFILE"
+  : >"$LOGFILE"
+  : >"$PLAYINGFILE"
+
+  local pid
+  pid="$(
+    /usr/bin/python3 - "$RUNNER" <<'PY'
+import os, sys
+runner = sys.argv[1]
+if os.fork() > 0:
+    raise SystemExit(0)
+os.setsid()
+if os.fork() > 0:
+    raise SystemExit(0)
+os.chdir("/")
+devnull = os.open("/dev/null", os.O_RDWR)
+os.dup2(devnull, 0)
+os.dup2(devnull, 1)
+os.dup2(devnull, 2)
+os.execv(runner, [runner])
+PY
+    /bin/sleep 0.4
+    /usr/bin/pgrep -n -f '/Users/wxomi/.local/bin/claudefm-run' || true
+  )"
+
+  if [[ -z "${pid:-}" ]]; then
+    echo "failed to start player" >&2
+    rm -f "$PLAYINGFILE"
+    return 1
+  fi
+  echo "$pid" >"$PIDFILE"
+  echo "playing: $label @ $(current_volume)%"
+}
+
+cmd_status() {
+  if is_playing; then
+    echo "playing: $(current_label)"
+    echo "volume: $(current_volume)%"
+    echo "backend: mpv"
+    echo "url: $(cat "$URLFILE" 2>/dev/null || echo "$DEFAULT_URL")"
+    return 0
+  fi
+  if is_running; then
+    echo "starting: $(current_label) (waiting for audio)"
+    echo "volume: $(current_volume)%"
+    echo "backend: mpv"
+    return 0
+  fi
+  rm -f "$PLAYINGFILE"
+  echo "stopped"
+  echo "volume: $(current_volume)%"
+  return 1
+}
+
+cmd_vol() {
+  local arg="${1:-}"
+  local vol
+  vol="$(current_volume)"
+
+  case "$arg" in
+    ''|status|show)
+      echo "volume: ${vol}%"
+      return 0
+      ;;
+    mute)
+      if ((vol > 0)); then
+        echo "$vol" >"$PREVOLFILE"
+      fi
+      vol=0
+      ;;
+    unmute)
+      if [[ -f "$PREVOLFILE" ]]; then
+        vol="$(tr -d '[:space:]' <"$PREVOLFILE")"
+      else
+        vol="$DEFAULT_VOL"
+      fi
+      ;;
+    toggle-mute|tm)
+      if ((vol == 0)); then
+        cmd_vol unmute
+        return
+      fi
+      cmd_vol mute
+      return
+      ;;
+    +|up|u)
+      vol="$(clamp_vol $((vol + VOL_STEP)))"
+      ;;
+    -|down|d)
+      vol="$(clamp_vol $((vol - VOL_STEP)))"
+      ;;
+    *)
+      if [[ "$arg" =~ ^[0-9]+$ ]]; then
+        vol="$(clamp_vol "$arg")"
+      else
+        echo "Usage: claudefm vol [0-100|+|-|mute|unmute]" >&2
+        return 1
+      fi
+      ;;
+  esac
+
+  echo "$vol" >"$VOLFILE"
+  apply_volume "$vol"
+  echo "volume: ${vol}%"
+}
+
+cmd_toggle() {
+  local url="${1:-}"
+  if is_running; then
+    if [[ -n "$url" ]] && is_url "$url"; then
+      local cur
+      cur="$(cat "$URLFILE" 2>/dev/null || true)"
+      if [[ "$cur" != "$url" ]]; then
+        cmd_start "$url"
+        return
+      fi
+    fi
+    cmd_stop
+  else
+    cmd_start "${url:-$DEFAULT_URL}"
+  fi
+}
+
+usage() {
+  cat <<'EOF'
+Usage: claudefm [command] [args]
+
+  cfm / claudefm [start] [URL]   play (default: Claude FM)
+  cfmstop                        stop
+  cfmvol / claudefm vol [N]      set volume 0-100 (instant via mpv IPC)
+  cfmvol + | cfmvol -            nudge by 10%
+  cfmvol mute | cfmvol unmute    mute toggle helpers
+  cfmmute                        toggle mute
+
+  WezTerm: LEADER+] vol up · LEADER+[ vol down · LEADER+m mute
+EOF
+}
+
+cmd="${1:-start}"
+arg="${2:-}"
+
+if is_url "$cmd"; then
+  cmd_start "$cmd"
+  exit 0
+fi
+
+case "$cmd" in
+  start)
+    if [[ -n "$arg" ]]; then
+      cmd_start "$arg"
+    else
+      cmd_start "$DEFAULT_URL"
+    fi
+    ;;
+  stop) cmd_stop ;;
+  toggle) cmd_toggle "$arg" ;;
+  status) cmd_status ;;
+  bar) cmd_bar ;;
+  vol|volume) cmd_vol "$arg" ;;
+  mute) cmd_vol toggle-mute ;;
+  -h|--help|help) usage ;;
+  *)
+    echo "Unknown command: $cmd" >&2
+    usage >&2
+    exit 1
+    ;;
+esac

@@ -1,0 +1,23 @@
+id = "wxomi.current-space"
+name = "Current Space Agents"
+version = "0.1.0"
+min_herdr_version = "0.8.0"
+description = "Show only agents from the focused workspace in the agents panel"
+platforms = ["linux", "macos"]
+
+[[startup]]
+command = ["/opt/homebrew/bin/python3", "apply_view.py"]
+
+[[actions]]
+id = "apply"
+title = "Filter agents to current space"
+description = "Show only agents belonging to the focused workspace"
+contexts = ["global"]
+command = ["/opt/homebrew/bin/python3", "apply_view.py"]
+
+[[actions]]
+id = "clear"
+title = "Show all agents"
+description = "Clear the current-space agent filter"
+contexts = ["global"]
+command = ["/opt/homebrew/bin/python3", "apply_view.py", "clear"]

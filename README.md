@@ -53,4 +53,8 @@ cd ~/dotfiles && ./install.sh
 2. **WezTerm + CodexBar**: Clones [`wezterm-codexbar-setup`](https://github.com/wxomi/wezterm-codexbar-setup) into `~/Workspace/utils/wezterm-codexbar-setup` and creates status bar symlinks.
 3. **Agent Skills**: Restores `~/.agents/skills` and runs [`skill-link.sh`](./skill-link.sh) to link skills across all agents.
 4. **Shell & Prompt**: Antidote plugins, Zsh config (`~/.zshrc`), Instahyre extensions (`~/.zshrc-instahyre`), and Starship prompt.
-5. **Herdr**: Workspace manager config and keybindings in `~/.config/herdr/config.toml`.
+5. **Herdr & Full Plugin Suite**: Workspace manager config, keybindings (`config.toml`), and all active plugins:
+   - `Session Titles` (`wxomi/herdr-session-titles`): Live session title updater in the agents sidebar.
+   - `Herdr Navigator` (`thanhdat77/herdr-navigator`): Fuzzy workspace and session switcher (`prefix+p`).
+   - `Current Space Agents`: Focused workspace agent filter.
+   - `Auto Title`, `Annotate`, `Memex`, `Reviewr`, `Heeler`.

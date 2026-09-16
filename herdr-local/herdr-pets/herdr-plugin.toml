@@ -1,0 +1,8 @@
+id = "wxomi.pets"
+name = "Herdr Pets"
+version = "0.8.0"
+min_herdr_version = "0.8.0"
+description = "Pets plugin (disabled UI — kept for optional future use)"
+platforms = ["linux", "macos"]
+
+# No startup, no panes, no default actions — pets UI removed.

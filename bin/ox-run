@@ -1,0 +1,7 @@
+#!/bin/bash
+# Non-interactive Ox Alpha prompt (like: agent -p "...")
+if [ $# -eq 0 ]; then
+  echo "usage: ox-run <prompt...>" >&2
+  exit 1
+fi
+exec "/opt/homebrew/bin/opencode" run -m opencode/x-preview-f-free -- "$@"

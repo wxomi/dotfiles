@@ -40,15 +40,21 @@ ln -sf "$DOTFILES_DIR/.zshenv" "$HOME/.zshenv"
 ln -sf "$DOTFILES_DIR/.zsh_plugins.txt" "$HOME/.zsh_plugins.txt"
 ln -sf "$DOTFILES_DIR/.gitignore_global" "$HOME/.gitignore_global"
 
+# Custom binaries (cfm, ox, etc.)
+mkdir -p "$HOME/.local/bin"
+if [ -d "$DOTFILES_DIR/bin" ]; then
+    cp -f "$DOTFILES_DIR/bin/"* "$HOME/.local/bin/"
+    chmod +x "$HOME/.local/bin/"*
+fi
+
 # Starship prompt
 mkdir -p "$HOME/.config"
 ln -sf "$DOTFILES_DIR/config/starship.toml" "$HOME/.config/starship.toml"
 
-# Herdr config
-mkdir -p "$HOME/.config/herdr"
-ln -sf "$DOTFILES_DIR/config/herdr/config.toml" "$HOME/.config/herdr/config.toml"
-if [ -f "$DOTFILES_DIR/config/herdr/plugins.json" ] && [ ! -f "$HOME/.config/herdr/plugins.json" ]; then
-    cp "$DOTFILES_DIR/config/herdr/plugins.json" "$HOME/.config/herdr/plugins.json"
+# Mise configuration
+mkdir -p "$HOME/.config/mise"
+if [ -f "$DOTFILES_DIR/config/mise/config.toml" ]; then
+    ln -sf "$DOTFILES_DIR/config/mise/config.toml" "$HOME/.config/mise/config.toml"
 fi
 
 # 5. WezTerm + CodexBar setup
@@ -62,7 +68,66 @@ fi
 chmod +x "$HOME/Workspace/utils/wezterm-codexbar-setup/setup.sh"
 (cd "$HOME/Workspace/utils/wezterm-codexbar-setup" && ./setup.sh)
 
-# 6. Agent skills & skill-link
+# 6. Herdr & Plugins Setup (Session Titles, Navigator, Space Agents, etc.)
+echo "==> Setting up Herdr and all custom plugins..."
+mkdir -p "$HOME/.config/herdr"
+ln -sf "$DOTFILES_DIR/config/herdr/config.toml" "$HOME/.config/herdr/config.toml"
+
+# Restore Herdr plugin configs
+mkdir -p "$HOME/.config/herdr/plugins/config"
+if [ -d "$DOTFILES_DIR/config/herdr/plugins-config" ]; then
+    cp -R "$DOTFILES_DIR/config/herdr/plugins-config/"* "$HOME/.config/herdr/plugins/config/" 2>/dev/null || true
+fi
+
+# Local plugins in ~/.local/share
+mkdir -p "$HOME/.local/share"
+if [ -d "$DOTFILES_DIR/herdr-local/herdr-navigator" ]; then
+    cp -R "$DOTFILES_DIR/herdr-local/herdr-navigator" "$HOME/.local/share/"
+fi
+if [ -d "$DOTFILES_DIR/herdr-local/herdr-space-agents" ]; then
+    cp -R "$DOTFILES_DIR/herdr-local/herdr-space-agents" "$HOME/.local/share/"
+fi
+if [ -d "$DOTFILES_DIR/herdr-local/herdr-pets" ]; then
+    cp -R "$DOTFILES_DIR/herdr-local/herdr-pets" "$HOME/.local/share/"
+fi
+
+# Clone Session Titles (wxomi/herdr-session-titles)
+if [ ! -d "$HOME/.local/share/herdr-session-titles" ]; then
+    echo "==> Cloning Session Titles plugin..."
+    git clone https://github.com/wxomi/herdr-session-titles.git "$HOME/.local/share/herdr-session-titles"
+else
+    git -C "$HOME/.local/share/herdr-session-titles" pull || true
+fi
+
+# Clone Heeler plugin
+if [ ! -d "$HOME/.config/herdr/plugins/github/heeler" ]; then
+    echo "==> Cloning Heeler plugin..."
+    mkdir -p "$HOME/.config/herdr/plugins/github/heeler"
+    git clone https://github.com/ZingerLittleBee/Heeler.git "$HOME/.config/herdr/plugins/github/heeler" || true
+    if [ -d "$HOME/.config/herdr/plugins/github/heeler/plugin" ] && command -v npm >/dev/null 2>&1; then
+        (cd "$HOME/.config/herdr/plugins/github/heeler/plugin" && npm ci) || true
+    fi
+fi
+
+# Link all local plugins in Herdr
+if command -v herdr >/dev/null 2>&1; then
+    echo "==> Linking Herdr plugins..."
+    herdr plugin link "$HOME/.local/share/herdr-session-titles" 2>/dev/null || true
+    herdr plugin link "$HOME/.local/share/herdr-navigator" 2>/dev/null || true
+    herdr plugin link "$HOME/.local/share/herdr-space-agents" --disabled 2>/dev/null || true
+    if [ -d "$HOME/.config/herdr/plugins/github/heeler/plugin" ]; then
+        herdr plugin link "$HOME/.config/herdr/plugins/github/heeler/plugin" 2>/dev/null || true
+    fi
+
+    # Install GitHub plugins via Herdr plugin manager
+    echo "==> Installing GitHub Herdr plugins..."
+    herdr plugin install plannotator/herdr-annotate/lite --yes 2>/dev/null || true
+    herdr plugin install kryptamine/herdr-auto-title --yes 2>/dev/null || true
+    herdr plugin install nicosuave/memex --yes 2>/dev/null || true
+    herdr plugin install persiyanov/herdr-reviewr --yes 2>/dev/null || true
+fi
+
+# 7. Agent skills & skill-link
 echo "==> Restoring agent skills..."
 mkdir -p "$HOME/.agents"
 rsync -a "$DOTFILES_DIR/agents/skills" "$HOME/.agents/"
@@ -70,7 +135,7 @@ cp "$DOTFILES_DIR/agents/.skill-lock.json" "$HOME/.agents/.skill-lock.json"
 chmod +x "$DOTFILES_DIR/skill-link.sh"
 "$DOTFILES_DIR/skill-link.sh" --auto
 
-# 7. Antidote plugin pre-compilation
+# 8. Antidote plugin pre-compilation
 echo "==> Initializing Antidote zsh plugins..."
 if [ -f /opt/homebrew/opt/antidote/share/antidote/antidote.zsh ]; then
     zsh -c "source /opt/homebrew/opt/antidote/share/antidote/antidote.zsh && antidote bundle <$HOME/.zsh_plugins.txt >|$HOME/.zsh_plugins.zsh" || true

@@ -1,0 +1,11 @@
+# --- oh-my-zsh library + cherry-picked plugins ---
+ohmyzsh/ohmyzsh path:lib
+ohmyzsh/ohmyzsh path:plugins/git
+ohmyzsh/ohmyzsh path:plugins/colored-man-pages
+
+# --- deferred: syntax highlighting + autosuggestions ---
+zsh-users/zsh-syntax-highlighting kind:defer
+zsh-users/zsh-autosuggestions kind:defer
+
+# --- deferred: completions ---
+zsh-users/zsh-completions kind:defer

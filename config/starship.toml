@@ -1,0 +1,10 @@
+[hg_branch]
+disabled = false
+symbol = ""
+format = "on [$branch]($style) "
+
+[nodejs]
+format = "[$symbol$version]($style) "
+
+[python]
+format = "[$symbol$version]($style) "

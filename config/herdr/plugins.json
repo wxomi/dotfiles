@@ -1,0 +1,717 @@
+[
+  {
+    "plugin_id": "annotate",
+    "name": "Annotate",
+    "version": "0.4.0",
+    "min_herdr_version": "0.8.0",
+    "description": "Comment on terminal selections and copy annotations as agent context.",
+    "manifest_path": "/Users/wxomi/.config/herdr/plugins/github/annotate-9c299759567c/lite/herdr-plugin.toml",
+    "plugin_root": "/Users/wxomi/.config/herdr/plugins/github/annotate-9c299759567c/lite",
+    "enabled": true,
+    "platforms": [
+      "linux",
+      "macos",
+      "windows"
+    ],
+    "build": [
+      {
+        "platforms": [
+          "macos",
+          "linux"
+        ],
+        "command": [
+          "bash",
+          "../scripts/fetch-herdr-annotate.sh"
+        ]
+      },
+      {
+        "platforms": [
+          "windows"
+        ],
+        "command": [
+          "powershell.exe",
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "../scripts/fetch-herdr-annotate.ps1"
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "id": "capture",
+        "title": "Annotate selection",
+        "description": "Open a comment dialog for the current terminal selection.",
+        "contexts": [
+          "pane"
+        ],
+        "command": [
+          "../bin/herdr-annotate.exe",
+          "capture"
+        ]
+      },
+      {
+        "id": "copy-archive",
+        "title": "Copy annotations as context and archive them",
+        "description": "Copy all saved annotations to the clipboard as Markdown, then archive them.",
+        "contexts": [
+          "global"
+        ],
+        "command": [
+          "../bin/herdr-annotate.exe",
+          "copy-archive"
+        ]
+      },
+      {
+        "id": "copy-context",
+        "title": "Copy annotations as context",
+        "description": "Copy all saved annotations to the clipboard as Markdown.",
+        "contexts": [
+          "global"
+        ],
+        "command": [
+          "../bin/herdr-annotate.exe",
+          "copy-context"
+        ]
+      },
+      {
+        "id": "manage",
+        "title": "Manage annotations",
+        "description": "Browse, copy, archive, restore, and delete annotations.",
+        "contexts": [
+          "global"
+        ],
+        "command": [
+          "../bin/herdr-annotate.exe",
+          "manage"
+        ]
+      }
+    ],
+    "panes": [
+      {
+        "id": "editor",
+        "title": "Annotate",
+        "placement": "popup",
+        "width": 88,
+        "height": 24,
+        "command": [
+          "../bin/herdr-annotate.exe",
+          "editor"
+        ]
+      },
+      {
+        "id": "manager",
+        "title": "Annotations",
+        "placement": "popup",
+        "width": 100,
+        "height": 30,
+        "command": [
+          "../bin/herdr-annotate.exe",
+          "manager"
+        ]
+      }
+    ],
+    "source": {
+      "kind": "github",
+      "owner": "plannotator",
+      "repo": "herdr-annotate",
+      "subdir": "lite",
+      "resolved_commit": "7c8f5a177b8285dc56efc471ef04f7ab44a2b4b6",
+      "managed_path": "/Users/wxomi/.config/herdr/plugins/github/annotate-9c299759567c",
+      "installed_unix_ms": 1789319718741
+    }
+  },
+  {
+    "plugin_id": "heeler",
+    "name": "heeler",
+    "version": "0.4.0",
+    "min_herdr_version": "0.7.5",
+    "description": "Pair a Heeler device by scanning a QR Pairing Code",
+    "manifest_path": "/Users/wxomi/.config/herdr/plugins/github/heeler-dd89d5c0f92b/plugin/herdr-plugin.toml",
+    "plugin_root": "/Users/wxomi/.config/herdr/plugins/github/heeler-dd89d5c0f92b/plugin",
+    "enabled": true,
+    "platforms": [
+      "linux",
+      "macos"
+    ],
+    "build": [
+      {
+        "command": [
+          "npm",
+          "ci"
+        ]
+      }
+    ],
+    "startup": [
+      {
+        "command": [
+          "/opt/homebrew/bin/node",
+          "src/sidebar-hook.js"
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "id": "pair",
+        "title": "Pair a mobile device",
+        "description": "Show a Pairing Code QR for the Heeler app",
+        "contexts": [
+          "global"
+        ],
+        "command": [
+          "/opt/homebrew/bin/node",
+          "src/pair-action.js"
+        ]
+      }
+    ],
+    "events": [
+      {
+        "on": "pane.agent_status_changed",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "src/activity-hook.js"
+        ]
+      },
+      {
+        "on": "pane.agent_status_changed",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "src/notify-hook.js"
+        ]
+      }
+    ],
+    "panes": [
+      {
+        "id": "pair",
+        "title": "Pair device",
+        "placement": "popup",
+        "width": "100%",
+        "height": "100%",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "src/pair-popup.js"
+        ]
+      }
+    ],
+    "source": {
+      "kind": "local"
+    }
+  },
+  {
+    "plugin_id": "herdr-navigator",
+    "name": "Herdr Navigator",
+    "version": "0.3.6",
+    "min_herdr_version": "0.7.3",
+    "description": "Jump to any Herdr workspace, agent, project, session, remote, directory, or action from one fuzzy navigator.",
+    "manifest_path": "/Users/wxomi/.local/share/herdr-navigator/herdr-plugin.toml",
+    "plugin_root": "/Users/wxomi/.local/share/herdr-navigator",
+    "enabled": true,
+    "platforms": [
+      "linux",
+      "macos"
+    ],
+    "build": [
+      {
+        "command": [
+          "cargo",
+          "build",
+          "--release"
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "id": "jump-back",
+        "title": "Herdr Navigator: jump back",
+        "contexts": [
+          "workspace",
+          "global"
+        ],
+        "command": [
+          "./target/release/herdr-navigator",
+          "jump-back"
+        ]
+      },
+      {
+        "id": "open",
+        "title": "Herdr Navigator: open",
+        "contexts": [
+          "workspace",
+          "global"
+        ],
+        "command": [
+          "./target/release/herdr-navigator",
+          "open"
+        ]
+      },
+      {
+        "id": "open-side",
+        "title": "Herdr Navigator: side pane",
+        "contexts": [
+          "workspace",
+          "global"
+        ],
+        "command": [
+          "./target/release/herdr-navigator",
+          "open-side"
+        ]
+      }
+    ],
+    "panes": [
+      {
+        "id": "picker",
+        "title": "Herdr Navigator",
+        "placement": "overlay",
+        "command": [
+          "./target/release/herdr-navigator",
+          "ui"
+        ]
+      },
+      {
+        "id": "picker-side",
+        "title": "Navigator Side",
+        "placement": "split",
+        "command": [
+          "./target/release/herdr-navigator",
+          "ui",
+          "--side"
+        ]
+      }
+    ],
+    "source": {
+      "kind": "local"
+    }
+  },
+  {
+    "plugin_id": "herdr.auto-title",
+    "name": "Auto Title",
+    "version": "0.5.0",
+    "min_herdr_version": "0.8.2",
+    "description": "Automatically generates contextual tab titles",
+    "manifest_path": "/Users/wxomi/.config/herdr/plugins/github/herdr.auto-title-4b7d61f48ce8/herdr-plugin.toml",
+    "plugin_root": "/Users/wxomi/.config/herdr/plugins/github/herdr.auto-title-4b7d61f48ce8",
+    "enabled": true,
+    "platforms": [
+      "linux",
+      "macos",
+      "windows"
+    ],
+    "build": [
+      {
+        "platforms": [
+          "linux",
+          "macos"
+        ],
+        "command": [
+          "go",
+          "build",
+          "-o",
+          "herdr-auto-title",
+          "./cmd/herdr-auto-title"
+        ]
+      },
+      {
+        "platforms": [
+          "windows"
+        ],
+        "command": [
+          "go",
+          "build",
+          "-o",
+          "herdr-auto-title.exe",
+          "./cmd/herdr-auto-title"
+        ]
+      }
+    ],
+    "startup": [
+      {
+        "platforms": [
+          "linux",
+          "macos"
+        ],
+        "command": [
+          "./herdr-auto-title"
+        ]
+      },
+      {
+        "platforms": [
+          "windows"
+        ],
+        "command": [
+          "./herdr-auto-title.exe"
+        ]
+      }
+    ],
+    "source": {
+      "kind": "github",
+      "owner": "kryptamine",
+      "repo": "herdr-auto-title",
+      "resolved_commit": "7fcec810280696b8b38b5bd884be2b340c73e02b",
+      "managed_path": "/Users/wxomi/.config/herdr/plugins/github/herdr.auto-title-4b7d61f48ce8",
+      "installed_unix_ms": 1789062352326
+    }
+  },
+  {
+    "plugin_id": "nicosuave.memex",
+    "name": "memex",
+    "version": "0.19.2",
+    "min_herdr_version": "0.7.0",
+    "description": "Session desk for your agent history: search past Claude Code / Codex / Cursor / Pi / Oh My Pi sessions and resume one into a herdr tab.",
+    "manifest_path": "/Users/wxomi/.config/herdr/plugins/github/nicosuave.memex-0a395832d8a8/herdr-plugin.toml",
+    "plugin_root": "/Users/wxomi/.config/herdr/plugins/github/nicosuave.memex-0a395832d8a8",
+    "enabled": true,
+    "platforms": [
+      "macos",
+      "linux"
+    ],
+    "build": [
+      {
+        "command": [
+          "bash",
+          "herdr/install.sh"
+        ]
+      }
+    ],
+    "startup": [
+      {
+        "command": [
+          "bash",
+          "herdr/plugin.sh",
+          "startup"
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "id": "desk",
+        "title": "memex: session desk",
+        "command": [
+          "bash",
+          "herdr/plugin.sh",
+          "desk"
+        ]
+      },
+      {
+        "id": "index",
+        "title": "memex: refresh index",
+        "command": [
+          "bash",
+          "herdr/plugin.sh",
+          "index"
+        ]
+      },
+      {
+        "id": "palette",
+        "title": "memex: session palette",
+        "contexts": [
+          "pane",
+          "workspace"
+        ],
+        "command": [
+          "bash",
+          "herdr/plugin.sh",
+          "palette"
+        ]
+      },
+      {
+        "id": "recent-here",
+        "title": "memex: recent sessions here",
+        "contexts": [
+          "pane",
+          "workspace"
+        ],
+        "command": [
+          "bash",
+          "herdr/plugin.sh",
+          "recent-here"
+        ]
+      },
+      {
+        "id": "resume-last",
+        "title": "memex: resume last session",
+        "contexts": [
+          "pane",
+          "workspace"
+        ],
+        "command": [
+          "bash",
+          "herdr/plugin.sh",
+          "resume-last"
+        ]
+      },
+      {
+        "id": "toggle",
+        "title": "memex: toggle sidebar",
+        "contexts": [
+          "pane",
+          "workspace"
+        ],
+        "command": [
+          "bash",
+          "herdr/plugin.sh",
+          "toggle"
+        ]
+      },
+      {
+        "id": "web",
+        "title": "memex: open web UI",
+        "command": [
+          "bash",
+          "herdr/plugin.sh",
+          "web"
+        ]
+      }
+    ],
+    "panes": [
+      {
+        "id": "desk",
+        "title": "memex",
+        "placement": "zoomed",
+        "command": [
+          "sh",
+          "-c",
+          "exec \"$HERDR_PLUGIN_ROOT/herdr/memex-pane.sh\""
+        ]
+      },
+      {
+        "id": "palette",
+        "title": "memex",
+        "placement": "overlay",
+        "command": [
+          "sh",
+          "-c",
+          "exec \"$HERDR_PLUGIN_ROOT/herdr/memex-pane.sh\""
+        ]
+      },
+      {
+        "id": "sidebar",
+        "title": "memex",
+        "placement": "split",
+        "command": [
+          "sh",
+          "-c",
+          "exec \"$HERDR_PLUGIN_ROOT/herdr/memex-pane.sh\""
+        ]
+      }
+    ],
+    "source": {
+      "kind": "github",
+      "owner": "nicosuave",
+      "repo": "memex",
+      "resolved_commit": "d6afead61a15221b541bb37c69a9703f0386947f",
+      "managed_path": "/Users/wxomi/.config/herdr/plugins/github/nicosuave.memex-0a395832d8a8",
+      "installed_unix_ms": 1789065790283
+    }
+  },
+  {
+    "plugin_id": "persiyanov.reviewr",
+    "name": "reviewr",
+    "version": "0.36.2",
+    "min_herdr_version": "0.7.5",
+    "description": "Review agent-written diffs beside the chat and add line comments to the agent input.",
+    "manifest_path": "/Users/wxomi/.config/herdr/plugins/github/persiyanov.reviewr-e87b654a74f8/herdr-plugin.toml",
+    "plugin_root": "/Users/wxomi/.config/herdr/plugins/github/persiyanov.reviewr-e87b654a74f8",
+    "enabled": true,
+    "platforms": [
+      "macos",
+      "linux"
+    ],
+    "build": [
+      {
+        "command": [
+          "bash",
+          "herdr/install.sh"
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "id": "close",
+        "title": "reviewr: close pane",
+        "contexts": [
+          "pane",
+          "workspace"
+        ],
+        "command": [
+          "bash",
+          "herdr/pane.sh",
+          "close"
+        ]
+      },
+      {
+        "id": "open",
+        "title": "reviewr: open pane",
+        "contexts": [
+          "pane",
+          "workspace"
+        ],
+        "command": [
+          "bash",
+          "herdr/pane.sh",
+          "open"
+        ]
+      },
+      {
+        "id": "toggle",
+        "title": "reviewr: toggle pane",
+        "contexts": [
+          "pane",
+          "workspace"
+        ],
+        "command": [
+          "bash",
+          "herdr/pane.sh",
+          "toggle"
+        ]
+      }
+    ],
+    "events": [
+      {
+        "on": "worktree.created",
+        "command": [
+          "bash",
+          "herdr/pane.sh",
+          "auto-open"
+        ]
+      },
+      {
+        "on": "worktree.opened",
+        "command": [
+          "bash",
+          "herdr/pane.sh",
+          "auto-open"
+        ]
+      }
+    ],
+    "panes": [
+      {
+        "id": "pane",
+        "title": "reviewr",
+        "placement": "split",
+        "command": [
+          "sh",
+          "-c",
+          "exec \"$HERDR_PLUGIN_ROOT/bin/herdr-reviewr\""
+        ]
+      }
+    ],
+    "source": {
+      "kind": "github",
+      "owner": "persiyanov",
+      "repo": "herdr-reviewr",
+      "resolved_commit": "4c090225af706bf3aaa24b39fea890a72994f40f",
+      "managed_path": "/Users/wxomi/.config/herdr/plugins/github/persiyanov.reviewr-e87b654a74f8",
+      "installed_unix_ms": 1789065753453
+    }
+  },
+  {
+    "plugin_id": "wxomi.current-space",
+    "name": "Current Space Agents",
+    "version": "0.1.0",
+    "min_herdr_version": "0.8.0",
+    "description": "Show only agents from the focused workspace in the agents panel",
+    "manifest_path": "/Users/wxomi/.local/share/herdr-space-agents/herdr-plugin.toml",
+    "plugin_root": "/Users/wxomi/.local/share/herdr-space-agents",
+    "enabled": false,
+    "platforms": [
+      "linux",
+      "macos"
+    ],
+    "startup": [
+      {
+        "command": [
+          "/opt/homebrew/bin/python3",
+          "apply_view.py"
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "id": "apply",
+        "title": "Filter agents to current space",
+        "description": "Show only agents belonging to the focused workspace",
+        "contexts": [
+          "global"
+        ],
+        "command": [
+          "/opt/homebrew/bin/python3",
+          "apply_view.py"
+        ]
+      },
+      {
+        "id": "clear",
+        "title": "Show all agents",
+        "description": "Clear the current-space agent filter",
+        "contexts": [
+          "global"
+        ],
+        "command": [
+          "/opt/homebrew/bin/python3",
+          "apply_view.py",
+          "clear"
+        ]
+      }
+    ],
+    "source": {
+      "kind": "local"
+    }
+  },
+  {
+    "plugin_id": "wxomi.session-titles",
+    "name": "Session Titles",
+    "version": "0.3.0",
+    "min_herdr_version": "0.8.0",
+    "description": "Keep the agents sidebar labeled with each agent's real session title",
+    "manifest_path": "/Users/wxomi/.local/share/herdr-session-titles/herdr-plugin.toml",
+    "plugin_root": "/Users/wxomi/.local/share/herdr-session-titles",
+    "enabled": true,
+    "platforms": [
+      "linux",
+      "macos"
+    ],
+    "startup": [
+      {
+        "command": [
+          "/opt/homebrew/bin/python3",
+          "sync_titles.py",
+          "--watch"
+        ]
+      }
+    ],
+    "events": [
+      {
+        "on": "pane.agent_detected",
+        "command": [
+          "/opt/homebrew/bin/python3",
+          "sync_titles.py"
+        ]
+      },
+      {
+        "on": "pane.agent_status_changed",
+        "command": [
+          "/opt/homebrew/bin/python3",
+          "sync_titles.py"
+        ]
+      },
+      {
+        "on": "tab.focused",
+        "command": [
+          "/opt/homebrew/bin/python3",
+          "sync_titles.py"
+        ]
+      },
+      {
+        "on": "tab.renamed",
+        "command": [
+          "/opt/homebrew/bin/python3",
+          "sync_titles.py"
+        ]
+      }
+    ],
+    "source": {
+      "kind": "local"
+    }
+  }
+]

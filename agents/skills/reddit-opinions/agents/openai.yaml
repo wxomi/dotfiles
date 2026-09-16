@@ -1,0 +1,4 @@
+interface:
+  display_name: "Reddit Opinions"
+  short_description: "Reddit-first public opinion research"
+  default_prompt: "Use $reddit-opinions to research what Reddit users think about a product, recommendation, or public topic."

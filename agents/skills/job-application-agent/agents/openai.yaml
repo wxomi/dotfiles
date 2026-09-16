@@ -1,0 +1,4 @@
+interface:
+  display_name: "Job Application Agent"
+  short_description: "Apply to jobs using your saved profile"
+  default_prompt: "Use $job-application-agent to apply to these job links using my Anshul.md profile."

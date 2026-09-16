@@ -1,0 +1,403 @@
+# ============================================================
+# Instahyre Dev Workflow (macOS)
+# ============================================================
+
+export INSTAHYRE_PATH="$HOME/Workspace/code/work/instahyre"
+export DEVEL_PATH="$INSTAHYRE_PATH/devel"
+export AUCTION_PATH="$DEVEL_PATH/auction"
+export ES_LOCATION="localhost:9200"
+
+# diskcache autocomplete uses /dev/shm on Linux; macOS has no such path.
+export AUTOCOMPLETE_CACHE_LOCATION="/tmp/instahyre-autocomplete-cache-py3"
+
+# Arcanist (Instahyre fork)
+export PATH="$INSTAHYRE_PATH/arcanist/bin:$PATH"
+
+# Use Redis as Celery broker (RabbitMQ 4.x incompatible with Celery 4.3.0)
+export CELERY_BROKER_URL=redis://localhost:6379/0
+
+# Zsh completion system (needed by compdef below)
+autoload -Uz compinit && compinit
+
+# --- Aliases ---
+alias dev="cd $AUCTION_PATH"
+alias cdiff="hg diff -c ."
+alias plint="pylint --rcfile=$DEVEL_PATH/.pylintrc"
+alias pull="find . -name '*.pyc' -delete && hg log -r 'bookmark() and not draft()' --template '{bookmarks} ' | xargs hg book -d 2>/dev/null; hg pull --quiet"
+
+alias fgraph='hg log -G --template "{label(ifeq(phase, \"draft\", \"changeset.draft\", \"changeset.public\"), \"{node|shortest}\")}{label(\"log.bookmark\", \"{if(bookmarks, \" [{join(bookmarks, \"][\")}]\")}\")} {label(\"log.user\", \"{author|user}\")} {desc|firstline}"'
+alias graph='fgraph -r "ancestors(draft() or descendants(ancestors(.), 1))"'
+
+# --- Services (brew services instead of systemctl/docker) ---
+alias runmysql="brew services start mysql@8.0"
+alias stopmysql="brew services stop mysql@8.0"
+alias runelastic="brew services start opensearch"
+alias stopelastic="brew services stop opensearch"
+alias runrabbit="brew services start rabbitmq"
+alias stoprabbit="brew services stop rabbitmq"
+alias runredis="brew services start redis"
+alias stopredis="brew services stop redis"
+alias stopserver='stopredis; stopmysql; stopelastic; stoprabbit'
+
+# --- Virtualenv helper ---
+_activate_venv() {
+    if [[ -f "$DEVEL_PATH/.venv/bin/activate" ]]; then
+        source "$DEVEL_PATH/.venv/bin/activate"
+    else
+        echo ".venv not found at $DEVEL_PATH/.venv" >&2
+        return 1
+    fi
+}
+
+# --- manage() — run manage.py in the venv ---
+manage() {
+    dev
+    _activate_venv || return 1
+    python manage.py "$@"
+}
+
+alias shell="_activate_venv && cd $AUCTION_PATH && python manage.py shell_plus --quiet-load"
+alias migrate="manage migrate"
+alias makemigrations="manage makemigrations"
+alias sqlmigrate="manage sqlmigrate"
+alias runcelery="dev && _activate_venv && python manage.py autoreload_celery"
+
+# --- runserver() — start services + Django ---
+check_and_start_service() {
+    local service_name="$1"
+    local start_command="$2"
+    local check_command="$3"
+
+    if eval "$check_command" > /dev/null; then
+        :
+    else
+        echo "Starting ${service_name}..."
+        if ! eval "$start_command"; then
+            echo "Failed to start ${service_name}. Please check manually."
+            return 1
+        fi
+    fi
+    return 0
+}
+
+runserver() {
+    check_and_start_service "MySQL" "brew services start mysql@8.0" "brew services list | grep -q 'mysql@8.0.*started'" || return 1
+    check_and_start_service "OpenSearch" "brew services start opensearch" "brew services list | grep -q 'opensearch.*started'" || return 1
+    check_and_start_service "Redis" "brew services start redis" "brew services list | grep -q 'redis.*started'" || return 1
+    check_and_start_service "RabbitMQ" "brew services start rabbitmq" "brew services list | grep -q 'rabbitmq.*started'" || return 1
+
+    dev
+    _activate_venv || return 1
+
+    if [[ "$1" == "--log" ]]; then
+        runlog
+    else
+        python manage.py runserver
+    fi
+}
+
+runlog() {
+    _activate_venv || return 1
+    local LOGFILE=$(mktemp /tmp/django_server.XXXXXX.log)
+    local URL="http://localhost:8000"
+
+    _wait_and_open() {
+        for i in {1..30}; do
+            if curl -s --head --fail "$URL" &>/dev/null; then
+                echo -e "\n✅ Server is up!" >&2
+                echo "➡️  Ready to view at: $URL"
+                command -v code &>/dev/null && code "$LOGFILE" &
+                return
+            fi
+            sleep 1
+        done
+        echo -e "\n❌ Timed out waiting for the server to start." >&2
+    }
+
+    echo "Starting server silently... Filtered log will be saved to: $LOGFILE"
+    _wait_and_open &
+    python manage.py runserver 2>&1 | fold -w 180 -s > "$LOGFILE"
+}
+
+# --- Database dump helpers ---
+alias mdump='mysqldump -u root --all-databases | pv -s$(mysql -u root -Nse "SELECT ROUND(SUM(data_length) * 0.9, 0) FROM information_schema.TABLES")'
+
+apply-dump() {
+    local file=$1
+    local ext="${file##*.}"
+
+    echo "Dropping and recreating databases..."
+    mysql -u root -e 'DROP DATABASE IF EXISTS auction; DROP DATABASE IF EXISTS instamail; CREATE DATABASE auction; CREATE DATABASE instamail;'
+
+    if [[ "$ext" == "tar" || "$ext" == "gz" ]]; then
+        local tmp_dir=$(mktemp -d -t dump-XXXXXX)
+        echo "Extracting archive to $tmp_dir..."
+
+        if [[ "$ext" == "tar" ]]; then
+            tar -xf "$file" -C "$tmp_dir"
+        elif [[ "$ext" == "gz" && "$file" == *.tar.gz ]]; then
+            tar -xzf "$file" -C "$tmp_dir"
+        fi
+
+        local sql_files=($(find "$tmp_dir" -name "*.sql"))
+        if [[ ${#sql_files[@]} -gt 0 ]]; then
+            echo "Found ${#sql_files[@]} SQL file(s). Applying..."
+            for sql_file in "${sql_files[@]}"; do
+                echo "Applying $sql_file"
+                pv "$sql_file" | mysql -u root
+            done
+        else
+            echo "No SQL files found in the archive!"
+        fi
+        rm -rf "$tmp_dir"
+    else
+        echo "Applying $file..."
+        pv "$file" | mysql -u root
+    fi
+}
+
+# --- hg workflow functions ---
+unalias up 2>/dev/null
+unalias bo 2>/dev/null
+
+_get_hg_bookmarks() {
+    local bookmarks
+    bookmarks=(${(f)"$(hg bookmarks | awk '{print $1}' | grep -v '^\*')"})
+    echo $bookmarks
+}
+
+_hg_bookmark_complete() {
+    local -a bookmarks
+    if hg root &>/dev/null; then
+        bookmarks=(${(f)"$(hg bookmarks | awk '{print $1}' | grep -v '^\*')"})
+    fi
+    _arguments "1:bookmark:($bookmarks)"
+}
+
+up() {
+    hg up "$@"
+}
+
+bo() {
+    hg bo "$@"
+}
+
+compdef _hg_bookmark_complete bo
+compdef _hg_bookmark_complete up
+
+rebase() {
+    if [ -z "$1" ]; then
+        echo "❌ Error: Missing destination bookmark."
+        echo "Usage: rebase <dest> [-s <source>]"
+        return 1
+    fi
+    DEST=$1
+    shift
+    pull
+    echo "Rebasing onto '$DEST'..."
+    hg rebase -d "$DEST" "$@" --quiet
+}
+
+land() {
+    if [ -z "$1" ]; then
+        echo "❌ Error: Missing destination bookmark."
+        echo "Usage: land <bookmark-name>"
+        return 1
+    fi
+    DEST=$1
+    pull
+    OUTPUT=$(hg rebase -d "$DEST" 2>&1)
+    EXIT_CODE=$?
+    echo "$OUTPUT"
+    if [ $EXIT_CODE -eq 0 ]; then
+        :
+    else
+        if [[ "$OUTPUT" == *"nothing to rebase"* ]]; then
+            :
+        else
+            echo "Rebase failed (Conflict or Error). Stopping."
+            return $EXIT_CODE
+        fi
+    fi
+    arc land --onto "$DEST"
+}
+
+amend() {
+    hg ci --amend --no-edit || return 1
+
+    local PARENT_BOOKMARK=$(hg log -r "p1(.)" --template "{bookmarks}" 2>/dev/null)
+    local DIFF_ID=$(hg log -r . --template "{desc}" 2>/dev/null | grep -oP "D\d+" | head -1)
+
+    if [[ "$PARENT_BOOKMARK" =~ ^T[0-9]+$ ]]; then
+        echo "🚀 Running: arc diff $PARENT_BOOKMARK --update $DIFF_ID -m 'update'"
+        arc diff --allow-untracked "$PARENT_BOOKMARK" --update "$DIFF_ID" -m "update"
+    else
+        echo "🚀 Running: arc diff -m 'update'"
+        arc diff --allow-untracked -m "update"
+    fi
+}
+
+# Automate bookmark, commit + arc diff
+adiff() {
+    local INPUT="$1"
+    shift
+    local USER_ARGS=("$@")
+
+    local COMMIT_MSG=""
+    local DETECTED_FLAG=""
+    local ARC_ARGS=()
+    local BOOKMARK_NAME=""
+    local DESTINATION=""
+    local PARENT_BOOKMARK=""
+    local FINAL_USER_ARGS=()
+
+    for arg in "${USER_ARGS[@]}"; do
+        if [[ "$arg" == "master" || "$arg" == "staging" || "$arg" == "prod" || "$arg" == "other" ]]; then
+            DESTINATION="$arg"
+        elif [[ "$arg" =~ ^T[0-9]+$ ]]; then
+            PARENT_BOOKMARK="$arg"
+        else
+            FINAL_USER_ARGS+=("$arg")
+        fi
+    done
+
+    if [[ "$INPUT" =~ ^T[0-9]+$ ]]; then
+        local ID_NUM="${INPUT#T}"
+        BOOKMARK_NAME="$INPUT"
+
+        local JSON_PAYLOAD="{\"constraints\": {\"ids\": [$ID_NUM]}, \"attachments\": {\"projects\": true}}"
+        local OUTPUT=$(echo "$JSON_PAYLOAD" | \
+            arc call-conduit --conduit-uri https://phab.instahyre.com/ -- maniphest.search 2>/dev/null | \
+            python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)['response']['data'][0]
+    title = data['fields']['name']
+    phids = []
+    proj_data = data.get('attachments', {}).get('projects', {})
+    if 'projectPHIDs' in proj_data: phids = proj_data['projectPHIDs']
+    elif 'projects' in proj_data:
+        p_inner = proj_data['projects']
+        phids = list(p_inner.keys()) if isinstance(p_inner, dict) else p_inner
+    BUG_PHID = 'PHID-PROJ-pnlphh6oioqi4p7ntxqf'
+    FEATURE_PHID = 'PHID-PROJ-istb7sifnsila5yjyavy'
+    CLEANUP_PHID = 'PHID-PROJ-eyucvbdgo7vixxdmty2i'
+    if FEATURE_PHID in phids or CLEANUP_PHID in phids:
+        flag = '--not-a-bug'
+    elif BUG_PHID in phids:
+        flag = \"--not-found '.'\"
+    else:
+        flag = \"--not-found '.'\"
+    print(f\"{title}|{flag}\")
+except Exception: pass
+")
+        if [ -n "$OUTPUT" ]; then
+            COMMIT_MSG="${OUTPUT%%|*}"
+            DETECTED_FLAG="${OUTPUT#*|}"
+            ARC_ARGS+=( "--fixes" "$INPUT" )
+        else
+            COMMIT_MSG="$INPUT"
+        fi
+    elif [[ "$INPUT" == "master" || "$INPUT" == "staging" || "$INPUT" == "prod" || "$INPUT" == "other" ]]; then
+        DESTINATION="$INPUT"
+        COMMIT_MSG=""
+    else
+        COMMIT_MSG="$INPUT"
+    fi
+
+    if [ -n "$DESTINATION" ]; then
+        ARC_ARGS+=( "--land-on" "$DESTINATION" )
+    elif [[ ! " ${USER_ARGS[*]} " =~ " --land-on " ]]; then
+        ARC_ARGS+=( "--land-on" "other" )
+    fi
+
+    if [[ ! " ${USER_ARGS[*]} " =~ " --not-a-bug " ]] && \
+       [[ ! " ${USER_ARGS[*]} " =~ " --caused-by " ]] && \
+       [[ ! " ${USER_ARGS[*]} " =~ " --not-found " ]]; then
+        if [ -n "$DETECTED_FLAG" ]; then
+            eval "ARC_ARGS+=($DETECTED_FLAG)"
+        else
+            ARC_ARGS+=( "--not-found" "." )
+        fi
+    fi
+
+    ARC_ARGS+=("${FINAL_USER_ARGS[@]}")
+
+    if [ -n "$COMMIT_MSG" ]; then
+        if [ -n "$BOOKMARK_NAME" ]; then
+            hg book "$BOOKMARK_NAME"
+        fi
+        if [ -n "$(hg status -mard)" ]; then
+            hg ci -m "$COMMIT_MSG" || return 1
+        else
+            echo "✅ Nothing to commit — already committed, sending for review"
+        fi
+    fi
+
+    if [ -n "$PARENT_BOOKMARK" ]; then
+        ARC_ARGS=( "$PARENT_BOOKMARK" "--create" "${ARC_ARGS[@]}" )
+    fi
+
+    echo "🚀 Running: arc diff --allow-untracked ${ARC_ARGS[*]}"
+    arc diff --allow-untracked "${ARC_ARGS[@]}"
+}
+
+link_bug() {
+    local CURRENT_DIFF="${1//[^0-9]/}"
+    local CAUSED_BY="$2"
+    local TASK_FIELD_KEY="custom.instahyre:caused-by-revision"
+
+    if [[ -z "$CURRENT_DIFF" || -z "$CAUSED_BY" ]]; then
+        return 1
+    fi
+
+    local TASK_ID=$(echo "{\"constraints\": {\"ids\": [$CURRENT_DIFF]}}" | arc call-conduit -- differential.revision.search | python3 -c "
+import sys, json, re
+try:
+    data = json.loads(sys.stdin.read(), strict=False)
+    summary = data['response']['data'][0]['fields']['summary']
+    match = re.search(r'Fixes\s*:?\s*(T\d+)', summary, re.IGNORECASE)
+    if match: print(match.group(1))
+except: pass
+")
+
+    if [ -z "$TASK_ID" ]; then
+        return 1
+    fi
+
+    python3 -c "import json; print(json.dumps({
+        'objectIdentifier': '$TASK_ID',
+        'transactions': [{'type': '$TASK_FIELD_KEY', 'value': '$CAUSED_BY'}]
+    }))" | arc call-conduit -- maniphest.edit > /dev/null
+
+    local SEARCH_JSON=$(echo "{\"constraints\": {\"ids\": [$CURRENT_DIFF]}}" | arc call-conduit -- differential.revision.search)
+
+    local UPDATE_PAYLOAD=$(echo "$SEARCH_JSON" | python3 -c "
+import sys, json, re
+try:
+    data = json.loads(sys.stdin.read(), strict=False)
+    summary = data['response']['data'][0]['fields']['summary']
+    original_summary = summary
+    target_note = 'NOTE: **Reason for not mentioning \"Caused by revision\"**: .'
+    summary = summary.replace(target_note, '')
+    new_line = '\n\n**Caused by: $CAUSED_BY**'
+    if 'Caused by:' not in summary:
+        new_summary, count = re.subn(r'(Fixes\s*:?\s*T\d+)', r'\1' + new_line, summary, flags=re.I)
+        if count == 0:
+            summary = summary + new_line
+        else:
+            summary = new_summary
+    if summary != original_summary:
+        print(json.dumps({
+            'objectIdentifier': 'D$CURRENT_DIFF',
+            'transactions': [{'type': 'summary', 'value': summary}]
+        }))
+    else:
+        print('SKIP')
+except: pass
+")
+
+    if [[ -n "$UPDATE_PAYLOAD" && "$UPDATE_PAYLOAD" != "SKIP" ]]; then
+        printf '%s' "$UPDATE_PAYLOAD" | arc call-conduit -- differential.revision.edit > /dev/null
+    fi
+}

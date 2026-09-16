@@ -1,0 +1,71 @@
+onboarding = false
+[[keys.command]]
+key = "prefix+p"
+type = "plugin_action"
+command = "herdr-navigator.open"
+description = "fuzzy navigator for workspaces, agents, and projects"
+
+[[keys.command]]
+key = "prefix+l"
+type = "plugin_action"
+command = "herdr-navigator.jump-back"
+description = "jump to previous workspace"
+
+[[keys.command]]
+key = "prefix+r"
+type = "plugin_action"
+command = "persiyanov.reviewr.toggle"
+description = "toggle reviewr diff and file viewer"
+
+[[keys.command]]
+key = "prefix+m"
+type = "plugin_action"
+command = "nicosuave.memex.palette"
+description = "search and resume past agent sessions"
+
+[[keys.command]]
+key = "prefix+h"
+type = "plugin_action"
+command = "heeler.pair"
+description = "pair Heeler iOS app via QR code"
+
+# Annotate (Lite)
+[[keys.command]]
+key = "prefix+a"
+type = "plugin_action"
+command = "annotate.capture"
+description = "annotate text"
+
+[[keys.command]]
+key = "prefix+shift+a"
+type = "plugin_action"
+command = "annotate.copy-context"
+description = "copy annotations as context"
+
+[[keys.command]]
+key = "prefix+ctrl+a"
+type = "plugin_action"
+command = "annotate.copy-archive"
+description = "copy annotations as context and archive them"
+
+[[keys.command]]
+key = "prefix+shift+m"
+type = "plugin_action"
+command = "annotate.manage"
+description = "manage annotations"
+
+[keys]
+toggle_sidebar = "prefix+b"
+
+[ui]
+agent_panel_sort = "spaces"
+tab_bar_position = "bottom"
+sidebar_start_collapsed = false
+sidebar_collapsed_mode = "compact"
+
+[ui.sidebar.agents]
+row_gap = 0
+rows = [
+  ["state_icon", { token = "$session", bold = true }],
+  [{ token = "$location", dim = true }],
+]

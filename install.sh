@@ -11,8 +11,12 @@ echo "========================================"
 if ! xcode-select -p >/dev/null 2>&1; then
     echo "==> Installing Xcode Command Line Tools..."
     xcode-select --install
-    echo "Please finish the Xcode tools prompt if open, then press Enter to continue."
-    read -r
+    if [[ -t 0 ]]; then
+        echo "Please finish the Xcode tools prompt if open, then press Enter to continue."
+        read -r
+    else
+        echo "Non-interactive environment detected, proceeding..."
+    fi
 fi
 
 # 2. Homebrew

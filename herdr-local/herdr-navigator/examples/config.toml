@@ -1,0 +1,62 @@
+# Backward-compatible example. Prefer examples/default-config.toml.
+
+[picker]
+reuse_existing = true
+create_missing = true
+prefix_workspace_labels = true # set false to keep new labels plain
+engine = "nucleo" # nucleo | skim | simple
+source_order = ["workspace", "agent", "project", "session", "zoxide", "root", "server", "quick", "plugin"]
+source_priority_boost = 5
+agent_sort = "herdr" # herdr | priority | spaces
+preview = true
+detailed_rows = true
+check_updates = true
+# directory_template = "default.toml"
+# directory_template_key = "alt-enter"
+
+[notifications]
+enabled = true
+audio = false
+sound = "default" # default | custom
+custom_sound = "" # Used only when sound = "custom"
+
+[jump_back]
+# Record workspace transitions and enable herdr-navigator.jump-back.
+enabled = true
+# Pin the previous workspace first only in the initial unfiltered picker view.
+pin_previous = true
+
+[sources]
+open_workspaces = true
+herdr_plus_projects = true
+zoxide = true
+roots = true
+agents = true
+servers = true
+sessions = true
+herdr_plus_quick_actions = true
+
+[theme]
+inherit_herdr = true
+
+[[roots]]
+path = "~/workspace"
+max_depth = 3
+
+[[roots]]
+path = "~/projects"
+max_depth = 3
+
+# [[agent_aliases]]
+# alias = "main ai dot"
+# agent = "claude"
+# workspace = "Dotfiles"
+# path = "dotfiles"
+
+[sessions]
+local = true
+
+# Remote Herdr target. Selecting runs: herdr --remote prod-api --handoff.
+# [[sessions.entries]]
+# name = "prod"
+# remote = "prod-api"

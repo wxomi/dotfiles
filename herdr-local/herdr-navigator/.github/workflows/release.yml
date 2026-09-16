@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux-x86_64
+          - os: macos-latest
+            name: macos-aarch64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p dist/herdr-navigator
+          cp target/release/herdr-navigator dist/herdr-navigator/
+          cp README.md LICENSE CHANGELOG.md herdr-plugin.toml dist/herdr-navigator/
+          cp -R examples dist/herdr-navigator/
+          tar -C dist -czf herdr-navigator-${{ matrix.name }}.tar.gz herdr-navigator
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: herdr-navigator-${{ matrix.name }}.tar.gz
+          generate_release_notes: true

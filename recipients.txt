@@ -1,0 +1,3 @@
+# age public keys authorized to decrypt secrets.enc
+# Add public keys (age1...) here. Run ./encrypt_secrets.sh after adding a key.
+age1h0axza7la6e653pgllkma00weeks4kzxmplp233yzn40fgrljaksq4d9ma

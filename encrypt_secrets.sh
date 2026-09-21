@@ -6,8 +6,19 @@ STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles_secrets.XXXXXX")"
 trap 'rm -rf "$STAGING_DIR"' EXIT
 
 echo "========================================="
-echo " Encrypting MCP Secrets & ENVs"
+echo " Encrypting Secrets & ENVs with age"
 echo "========================================="
+
+if ! command -v age >/dev/null 2>&1; then
+    echo "Error: 'age' is not installed. Run: brew install age" >&2
+    exit 1
+fi
+
+RECIPIENTS_FILE="$DOTFILES_DIR/recipients.txt"
+if [ ! -f "$RECIPIENTS_FILE" ]; then
+    echo "Error: recipients.txt not found in $DOTFILES_DIR" >&2
+    exit 1
+fi
 
 mkdir -p "$STAGING_DIR/secrets"
 
@@ -33,24 +44,17 @@ if [ -f "$HOME/Workspace/config/.env" ]; then
     cp "$HOME/Workspace/config/.env" "$STAGING_DIR/secrets/kiro.env"
 fi
 
-# 3. Encrypt archive with OpenSSL AES-256-CBC PBKDF2
-if [ -n "${DOTFILES_SECRET_PASS:-}" ]; then
-    tar -czf - -C "$STAGING_DIR" secrets | openssl enc -aes-256-cbc -pbkdf2 -salt -iter 100000 -pass "pass:$DOTFILES_SECRET_PASS" -out "$DOTFILES_DIR/secrets.enc"
-else
-    echo ""
-    echo "Choose a master password to encrypt your secrets."
-    echo "You will use this password to decrypt them on your other laptop."
-    echo ""
-    tar -czf - -C "$STAGING_DIR" secrets | openssl enc -aes-256-cbc -pbkdf2 -salt -iter 100000 -out "$DOTFILES_DIR/secrets.enc"
-fi
+# 3. Encrypt archive with age using recipients list
+echo "  -> Encrypting archive using age recipients..."
+tar -czf - -C "$STAGING_DIR" secrets | age -R "$RECIPIENTS_FILE" -o "$DOTFILES_DIR/secrets.enc"
 
 echo ""
 echo "==> Encrypted successfully into $DOTFILES_DIR/secrets.enc"
 
 if git -C "$DOTFILES_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "==> Committing and pushing secrets.enc to GitHub..."
-    git -C "$DOTFILES_DIR" add "$DOTFILES_DIR/secrets.enc"
-    git -C "$DOTFILES_DIR" commit -m "chore: update encrypted secrets bundle" || true
+    git -C "$DOTFILES_DIR" add "$DOTFILES_DIR/secrets.enc" "$RECIPIENTS_FILE" "$DOTFILES_DIR/Brewfile" "$DOTFILES_DIR/encrypt_secrets.sh" "$DOTFILES_DIR/decrypt_secrets.sh"
+    git -C "$DOTFILES_DIR" commit -m "chore: upgrade secrets encryption to age asymmetric keys" || true
     git -C "$DOTFILES_DIR" push origin main || true
     echo "==> Pushed encrypted secrets to GitHub!"
 fi

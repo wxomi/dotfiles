@@ -2,6 +2,8 @@ tap "dteoh/sqa", trusted: { casks: ["slowquitapps"] }
 tap "steipete/tap"
 # Plugin manager for zsh, inspired by antigen and antibody
 brew "antidote"
+# Modern encryption tool with small explicit keys
+brew "age"
 # Automatic configure script builder
 brew "autoconf"
 # Parser generator

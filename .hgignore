@@ -1,0 +1,59 @@
+syntax: glob
+*~
+*.orig
+.DS_Store
+*.sw*
+*.pyc
+.hg/
+pdfjs/
+*secret*json
+*.txt
+*.csv
+*.patch
+*.log
+ignore/*
+src/google-measurement-protocol
+auction/CACHE/manifest.json
+loremipsum-1.0.2-py2.7.egg
+.codex
+.codex/**
+AGENTS.md
+scratch/
+docs/agents/
+
+# Local additions (laptop setup)
+.venv/
+venv/
+.mise.toml
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+__pycache__/
+.devin/
+docker/setup_backend_mac.sh
+docker/dump.sql.gz
+auction/ignore/
+
+# Agent workflow docs + isolated workspaces (applies to ALL repos)
+.agent-docs/
+.hg-shares/
+hg-share.sh
+
+# Project-level agent harness dirs (skills/rules/symlinks; applies to ALL repos)
+.cursor/
+.kiro/
+.opencode/
+
+# Matt Pocock skill output (applies to ALL repos via global ignore)
+# - domain-modeling: CONTEXT.md / CONTEXT-MAP.md glossary + docs/adr/ decisions
+# - wayfinder: docs/wayfinder/<slug>/ maps, tickets, research
+# - issue-tracker/research: docs/T*.md Phabricator task scratch docs
+# NOTE: CONTEXT.md and docs/adr/ are generic names also used outside these
+# skills; this hides them in every repo, not just this one.
+CONTEXT.md
+CONTEXT-MAP.md
+docs/adr/
+docs/wayfinder/
+docs/T*.md
+.scratch/
+prototype/

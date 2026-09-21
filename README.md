@@ -13,8 +13,8 @@ Set up this Mac using my dotfiles repository: https://github.com/wxomi/dotfiles
 
 Instructions:
 1. Ensure the repo is cloned at ~/dotfiles (or git clone https://github.com/wxomi/dotfiles.git ~/dotfiles).
-2. Run ~/dotfiles/install.sh.
-3. Confirm all symlinks (~/.zshrc, ~/.config/herdr, ~/.wezterm.lua, ~/.agents/skills) are in place and working.
+2. Run ~/dotfiles/install.sh (or prompt me for secrets password if secrets.enc is present).
+3. Confirm all symlinks (~/.zshrc, ~/.config/herdr, ~/.wezterm.lua, ~/.agents/skills) and MCP configs are in place.
 ```
 
 ---
@@ -58,3 +58,9 @@ cd ~/dotfiles && ./install.sh
    - `Herdr Navigator` (`thanhdat77/herdr-navigator`): Fuzzy workspace and session switcher (`prefix+p`).
    - `Current Space Agents`: Focused workspace agent filter.
    - `Auto Title`, `Annotate`, `Memex`, `Reviewr`, `Heeler`.
+   - Agent integrations for `devin`, `cursor`, and `antigravity-cli`.
+6. **Mercurial (`hg`) & Git**: Complete `~/.hgrc` (extensions, diff tools, aliases), `~/.hgignore` (agent isolation patterns), `~/.gitconfig`, and `~/.gitignore_global`.
+7. **Global Agent Guidelines & Codex Rules**: `~/AGENTS.md` (macOS clipboard `pbcopy` guidelines) and `~/.codex/rules/default.rules`.
+8. **MCP Servers**: Antigravity, Cursor, and Devin MCP configs (`instahyre-phabricator`, `slack`, `super-productivity`) + automated setup of `super-productivity-mcp`.
+9. **SSH & Work Directory**: `~/.ssh/config` (`vps`, `instahyre.com`, `github.com`), `~/Workspace` tree, and `~/Workspace/config/.env` (Kiro SSO).
+10. **Zed Editor & Custom Tools**: `~/.config/zed/settings.json` (agent servers, Ayu theme), `~/.config/mise/config.toml`, and custom bin tools (`cfm`, `ox`).

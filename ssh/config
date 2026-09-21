@@ -1,0 +1,20 @@
+# Added by OrbStack: 'orb' SSH host for Linux machines
+# This only works if it's at the top of ssh_config (before any Host blocks).
+# This won't be added again if you remove it.
+Include ~/.orbstack/ssh/config
+
+Host vps
+  HostName YOUR_VPS_IP
+  User YOUR_USERNAME
+  IdentityFile ~/.ssh/id_ed25519
+
+Host instahyre.com *.instahyre.com
+  User hg
+  IdentityFile ~/.ssh/instahyre_rsa
+  IdentitiesOnly yes
+  AddKeysToAgent yes
+
+Host github.com
+  AddKeysToAgent yes
+  UseKeychain yes
+  IdentityFile ~/.ssh/id_ed25519_github

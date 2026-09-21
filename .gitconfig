@@ -1,0 +1,9 @@
+[user]
+	name = Anshul Saini
+	email = sainianshul4987@gmail.com
+[init]
+	defaultBranch = main
+[credential]
+	helper = osxkeychain
+[core]
+	excludesfile = /Users/wxomi/.gitignore_global

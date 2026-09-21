@@ -1,0 +1,62 @@
+[ui]
+username = Anshul Saini  <anshul.saini@instahyre.com>
+ssh = ssh -C
+ignore = ~/.hgignore
+merge = kdiff3
+
+[defaults]
+diff = --unified 8
+
+[extensions]
+churn =
+color =
+hgext.extdiff =
+hgext.purge =
+hgext.rebase =
+histedit =
+mq =
+pager =
+shelve =
+graphlog =
+journal =
+evolve =
+
+[extdiff]
+cmd.kdiff3 =
+cmd.icdiff = icdiff
+opts.icdiff = --recursive -N -H --cols 192
+cmd.vsd  = code
+opts.vsd = --wait --diff
+
+[merge-tools]
+code.priority = 100
+code.premerge = True
+code.args     = --wait --merge $other $local $base $output
+kdiff3.priority = 99
+kdiff3.args = -b $base -o $output $local $other
+
+[merge-patterns]
+** = kdiff3
+
+[phases]
+publish = False
+
+[pager]
+pager = LESS='FSRX' less
+attend = cat, diff, glog, log, incoming, outgoing, lg, show, lga, icdiff, graph
+
+[color]
+log.branch = cyan
+log.summary = bold
+log.bookmark = cyan bold
+log.tag = blue bold
+log.user = magenta
+changeset.public = green
+changeset.draft = red bold
+mode = ansi
+
+[alias]
+unresolved = !$HG files -T "{reporoot}/{path}\0" "set:unresolved()" | xargs -0 code --wait
+
+[templates]
+mini = '{label(ifeq(phase, "draft", "changeset.draft", "changeset.public"), "{node|shortest}")}{label("log.bookmark", "{if(bookmarks, " [{join(bookmarks, "][")}]")}")} {label("log.user", "{author|user}")} {desc|firstline}'

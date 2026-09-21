@@ -6,17 +6,11 @@ STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles_secrets.XXXXXX")"
 trap 'rm -rf "$STAGING_DIR"' EXIT
 
 echo "========================================="
-echo " Encrypting Secrets & ENVs with age"
+echo " Encrypting Secrets & ENVs (age scrypt)"
 echo "========================================="
 
 if ! command -v age >/dev/null 2>&1; then
     echo "Error: 'age' is not installed. Run: brew install age" >&2
-    exit 1
-fi
-
-RECIPIENTS_FILE="$DOTFILES_DIR/recipients.txt"
-if [ ! -f "$RECIPIENTS_FILE" ]; then
-    echo "Error: recipients.txt not found in $DOTFILES_DIR" >&2
     exit 1
 fi
 
@@ -44,17 +38,20 @@ if [ -f "$HOME/Workspace/config/.env" ]; then
     cp "$HOME/Workspace/config/.env" "$STAGING_DIR/secrets/kiro.env"
 fi
 
-# 3. Encrypt archive with age using recipients list
-echo "  -> Encrypting archive using age recipients..."
-tar -czf - -C "$STAGING_DIR" secrets | age -R "$RECIPIENTS_FILE" -o "$DOTFILES_DIR/secrets.enc"
+# 3. Encrypt archive with age scrypt passphrase
+echo ""
+echo "Type your memorable 4-word passphrase when prompted."
+echo "You will use these 4 words to decrypt on your other laptop."
+echo ""
+tar -czf - -C "$STAGING_DIR" secrets | age -p -o "$DOTFILES_DIR/secrets.enc"
 
 echo ""
 echo "==> Encrypted successfully into $DOTFILES_DIR/secrets.enc"
 
 if git -C "$DOTFILES_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "==> Committing and pushing secrets.enc to GitHub..."
-    git -C "$DOTFILES_DIR" add "$DOTFILES_DIR/secrets.enc" "$RECIPIENTS_FILE" "$DOTFILES_DIR/Brewfile" "$DOTFILES_DIR/encrypt_secrets.sh" "$DOTFILES_DIR/decrypt_secrets.sh"
-    git -C "$DOTFILES_DIR" commit -m "chore: upgrade secrets encryption to age asymmetric keys" || true
+    git -C "$DOTFILES_DIR" add "$DOTFILES_DIR/secrets.enc" "$DOTFILES_DIR/Brewfile" "$DOTFILES_DIR/encrypt_secrets.sh" "$DOTFILES_DIR/decrypt_secrets.sh" "$DOTFILES_DIR/README.md"
+    git -C "$DOTFILES_DIR" commit -m "chore: use age scrypt passphrase encryption for public repo safety" || true
     git -C "$DOTFILES_DIR" push origin main || true
     echo "==> Pushed encrypted secrets to GitHub!"
 fi

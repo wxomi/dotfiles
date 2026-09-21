@@ -13,37 +13,15 @@ if ! command -v age >/dev/null 2>&1; then
     exit 1
 fi
 
-AGE_KEY="${AGE_KEY_FILE:-$HOME/.config/age/key.txt}"
-
-if [ ! -f "$AGE_KEY" ]; then
-    echo "========================================="
-    echo " age identity key not found!"
-    echo " Looked for: $AGE_KEY"
-    echo "========================================="
-    echo "To decrypt secrets on this computer, paste your private key"
-    echo "(starts with AGE-SECRET-KEY-1...) below."
-    echo ""
-    read -rsp "Paste AGE-SECRET-KEY-1... identity (or press Enter to skip): " MANUAL_KEY
-    echo ""
-    if [ -n "$MANUAL_KEY" ]; then
-        mkdir -p "$HOME/.config/age"
-        echo "$MANUAL_KEY" > "$AGE_KEY"
-        chmod 600 "$AGE_KEY"
-        echo "  -> Saved key to $AGE_KEY"
-    else
-        echo "No key provided. Skipping secrets decryption."
-        exit 0
-    fi
-fi
-
 TMP_SECRETS="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles_decrypted.XXXXXX")"
 trap 'rm -rf "$TMP_SECRETS"' EXIT
 
 echo "========================================="
-echo " Decrypting MCP Secrets & ENVs with age"
+echo " Decrypting MCP Secrets & ENVs (age)"
 echo "========================================="
+echo "Enter your memorable 4-word passphrase:"
 
-age -d -i "$AGE_KEY" "$DOTFILES_DIR/secrets.enc" | tar -xzf - -C "$TMP_SECRETS"
+age -d "$DOTFILES_DIR/secrets.enc" | tar -xzf - -C "$TMP_SECRETS"
 
 if [ -d "$TMP_SECRETS/secrets" ]; then
     mkdir -p "$HOME/.gemini/config" "$HOME/.cursor" "$HOME/.config/devin" "$HOME/Workspace/config"

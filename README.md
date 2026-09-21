@@ -39,13 +39,13 @@ If you are an AI agent reading this repository:
 
 ```bash
 # 1. Clone repository
-gh repo clone wxomi/dotfiles ~/dotfiles
+git clone https://github.com/wxomi/dotfiles.git ~/dotfiles
 
 # 2. Run bootstrap script
 cd ~/dotfiles && ./install.sh
 ```
 
-> **Secrets Decryption:** When `install.sh` runs, it will ask for your `age` private key (or you can paste it beforehand into `~/.config/age/key.txt`).
+> **Secrets Decryption:** When `install.sh` runs, it will ask for your memorable 4-word passphrase to decrypt MCP configs and environment variables with `age`.
 
 
 ---

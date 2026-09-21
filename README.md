@@ -39,11 +39,14 @@ If you are an AI agent reading this repository:
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/wxomi/dotfiles.git ~/dotfiles
+gh repo clone wxomi/dotfiles ~/dotfiles
 
 # 2. Run bootstrap script
 cd ~/dotfiles && ./install.sh
 ```
+
+> **Secrets Decryption:** When `install.sh` runs, it will ask for your `age` private key (or you can paste it beforehand into `~/.config/age/key.txt`).
+
 
 ---
 

@@ -51,7 +51,13 @@ if [ -f "$HOME/Workspace/config/.env" ]; then
     cp "$HOME/Workspace/config/.env" "$STAGING_DIR/secrets/kiro.env"
 fi
 
-# 3. Encrypt archive with age scrypt passphrase
+# 3. Collect the shared MCP daemon credentials (Linux only)
+if [ -f "$HOME/.config/instahyre-mcp/env" ]; then
+    echo "  -> Found Instahyre MCP server credentials"
+    cp "$HOME/.config/instahyre-mcp/env" "$STAGING_DIR/secrets/instahyre_mcp.env"
+fi
+
+# 4. Encrypt archive with age scrypt passphrase
 echo ""
 echo "Type your memorable 4-word passphrase when prompted."
 echo "You will use these 4 words to decrypt on your other laptop."

@@ -1,0 +1,17 @@
+[Unit]
+Description=Instahyre MCP server (Phabricator, Sentry, prod query tool, Logz.io)
+Documentation=https://github.com/wxomi/dotfiles
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/instahyre-mcp/env
+WorkingDirectory=%h/work/repo/devel/auction
+ExecStart=%h/.virtualenvs/auction_env3/bin/python -m internal.mcp_server.http_server --host 127.0.0.1 --port 13081
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+#
+# Refresh one credential for the shared Instahyre MCP daemon and restart it.
+#
+# The values are read from stdin, so they never land in your shell history:
+#
+#   instahyre-mcp-refresh logzio-cookie
+#   instahyre-mcp-refresh logzio-csrf
+#   instahyre-mcp-refresh query-tool-session
+#   instahyre-mcp-refresh query-tool-csrf
+#
+# After refreshing, re-roll the dotfiles bundle so a future decrypt does not
+# revert the change:
+#
+#   ~/dotfiles/encrypt_secrets.sh
+#
+set -euo pipefail
+
+ENV_FILE="$HOME/.config/instahyre-mcp/env"
+SERVICE="instahyre-mcp"
+
+usage() {
+    sed -n '2,17p' "$0" | sed 's/^#\s\{0,1\}//'
+}
+
+case "${1:-}" in
+    logzio-cookie)
+        KEY=LOGZIO_COOKIE
+        HINT="the whole Cookie header from an Explore request"
+        ;;
+    logzio-csrf)
+        KEY=LOGZIO_CSRF_TOKEN
+        HINT="the Logzio-Csrf-V2 cookie value"
+        ;;
+    query-tool-session)
+        KEY=QUERY_TOOL_SESSION_ID
+        HINT="the sessionid cookie value"
+        ;;
+    query-tool-csrf)
+        KEY=QUERY_TOOL_CSRF_TOKEN
+        HINT="the csrftoken cookie value"
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac
+
+if [ ! -f "$ENV_FILE" ]; then
+    echo "Missing $ENV_FILE, run ~/dotfiles/decrypt_secrets.sh first." >&2
+    exit 1
+fi
+
+printf 'Paste %s (%s), then press Enter:\n> ' "$KEY" "$HINT"
+IFS= read -r VALUE
+
+if [ -z "$VALUE" ]; then
+    echo "Empty value, nothing changed." >&2
+    exit 1
+fi
+
+python3 - "$ENV_FILE" "$KEY" "$VALUE" <<'PY'
+import sys
+
+path, key, value = sys.argv[1], sys.argv[2], sys.argv[3]
+needs_quotes = any(c in value for c in ' \t')
+rendered = '%s="%s"' % (key, value) if needs_quotes else '%s=%s' % (key, value)
+
+lines = open(path).read().splitlines()
+out = []
+found = False
+
+for line in lines:
+    if line.startswith(key + '='):
+        out.append(rendered)
+        found = True
+    else:
+        out.append(line)
+
+if not found:
+    out.append(rendered)
+
+open(path, 'w').write('\n'.join(out) + '\n')
+print('  -> updated %s' % key)
+PY
+
+chmod 600 "$ENV_FILE"
+
+systemctl --user restart "$SERVICE"
+sleep 2
+
+if systemctl --user is-active --quiet "$SERVICE"; then
+    echo "  -> $SERVICE restarted and active"
+else
+    echo "  -> $SERVICE FAILED to start, check: journalctl --user -u $SERVICE -n 30" >&2
+    exit 1
+fi
+
+echo
+echo "Re-roll the bundle so a decrypt does not revert this:"
+echo "  ~/dotfiles/encrypt_secrets.sh"

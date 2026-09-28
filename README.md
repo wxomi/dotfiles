@@ -62,6 +62,25 @@ secrets/kiro.env                  # shared, not machine-specific
 - `encrypt_secrets.sh` decrypts the existing bundle first, then replaces only this machine's variant, so encrypting on one laptop never drops the other's configs.
 - Pull before running either script on a machine that has not been updated yet.
 
+### Shared MCP daemon (Linux)
+
+On Linux the `instahyre-phabricator` MCP server runs as one systemd user service on `127.0.0.1:13081` instead of one stdio process per client, so Devin, Cursor, Antigravity and Codex all share a single process and a single copy of the credentials.
+
+```bash
+# install the unit (already done on the Mi Notebook Ultra)
+cp ~/dotfiles/systemd/instahyre-mcp.service ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now instahyre-mcp
+
+# refresh an expired cookie (value is read from stdin, never shell history)
+instahyre-mcp-refresh logzio-cookie
+instahyre-mcp-refresh query-tool-session
+
+# watch it
+journalctl --user -u instahyre-mcp -f
+```
+
+Credentials live in `~/.config/instahyre-mcp/env`, which `decrypt_secrets.sh` restores. macOS keeps the stdio configuration since it has no systemd.
+
 
 ---
 

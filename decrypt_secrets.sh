@@ -48,5 +48,15 @@ if [ -d "$TMP_SECRETS/secrets" ]; then
         echo "  -> Restored Workspace / Kiro .env"
     fi
 
+    # Credentials for the shared MCP daemon (systemd user service).
+    if [ -f "$TMP_SECRETS/secrets/instahyre_mcp.env" ]; then
+        mkdir -p "$HOME/.config/instahyre-mcp"
+        chmod 700 "$HOME/.config/instahyre-mcp"
+        cp -f "$TMP_SECRETS/secrets/instahyre_mcp.env" \
+            "$HOME/.config/instahyre-mcp/env"
+        chmod 600 "$HOME/.config/instahyre-mcp/env"
+        echo "  -> Restored Instahyre MCP server credentials"
+    fi
+
     echo "==> All secrets successfully decrypted and restored!"
 fi

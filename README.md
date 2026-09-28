@@ -47,6 +47,21 @@ cd ~/dotfiles && ./install.sh
 
 > **Secrets Decryption:** When `install.sh` runs, it will ask for your memorable 4-word passphrase to decrypt MCP configs and environment variables with `age`.
 
+### Per-OS MCP configs
+
+MCP configs embed absolute paths, which differ between macOS and Linux, so `secrets.enc` holds one variant per OS:
+
+```text
+secrets/cursor_mcp.darwin.json    secrets/cursor_mcp.linux.json
+secrets/devin_mcp.darwin.json     secrets/devin_mcp.linux.json
+secrets/gemini_mcp.darwin.json    secrets/gemini_mcp.linux.json
+secrets/kiro.env                  # shared, not machine-specific
+```
+
+- `decrypt_secrets.sh` restores only the variant matching `uname -s`, falling back to an unsuffixed `<name>.json` for older bundles.
+- `encrypt_secrets.sh` decrypts the existing bundle first, then replaces only this machine's variant, so encrypting on one laptop never drops the other's configs.
+- Pull before running either script on a machine that has not been updated yet.
+
 
 ---
 
